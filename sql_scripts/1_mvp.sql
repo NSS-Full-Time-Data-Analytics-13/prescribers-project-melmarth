@@ -57,8 +57,6 @@ WITH opioid_count AS (
 	GROUP BY specialty_description)
 	
 SELECT specialty_description
-	, opioid_claims
-	, SUM(total_claim_count) AS total_claims
 	, ROUND(100 * opioid_claims / SUM(total_claim_count),2) AS percent_opioid
 FROM prescription INNER JOIN prescriber USING(npi)
 	LEFT JOIN opioid_count USING(specialty_description)
@@ -74,15 +72,16 @@ FROM prescription JOIN drug USING (drug_name)
 ORDER BY total_drug_cost DESC
 ;
 --or if you meant total, total_drug_cost
-SELECT generic_name, SUM(total_drug_cost) AS total_cost
+SELECT generic_name, SUM(total_drug_cost)::money AS total_cost
 FROM prescription JOIN drug USING (drug_name)
 GROUP BY generic_name
 ORDER BY total_cost DESC
+LIMIT 1
 ;
 
 --    b. Which drug (generic_name) has the hightest total cost per day? **Bonus: Round your cost per day column to 2 decimal places. Google ROUND to see how this works.**
-SELECT generic_name, ROUND(total_drug_cost / (total_30_day_fill_count * 30), 2) AS cost_per_day
-FROM prescription LEFT JOIN drug USING(drug_name)
+SELECT generic_name, ROUND(SUM(total_drug_cost) / SUM(total_day_supply), 2)::money AS cost_per_day
+FROM prescription INNER JOIN drug USING(drug_name)
 GROUP BY generic_name
 ORDER BY cost_per_day DESC
 LIMIT 10
@@ -129,7 +128,7 @@ ORDER BY cbsa_pop DESC NULLS LAST
 --    c. What is the largest (in terms of population) county which is not included in a CBSA? Report the county name and population.
 SELECT county, SUM(population) AS total_pop
 FROM fips_county LEFT JOIN population USING(fipscounty)
-WHERE fipscounty NOT IN (SELECT fipscounty FROM cbsa)
+WHERE fipscounty NOT IN (SELECT DISTINCT fipscounty FROM cbsa)
 GROUP BY county
 ORDER BY total_pop DESC NULLS LAST
 ;
@@ -160,7 +159,7 @@ SELECT drug_name
 				THEN 'true'
 		   ELSE 'false'
 		   END AS opioid_tf
-	, CONCAT(nppes_provider_last_org_name, ', ', nppes_provider_first_name)
+	, CONCAT(nppes_provider_last_org_name, ', ', nppes_provider_first_name) AS provider
 FROM prescription LEFT JOIN prescriber USING(npi)
 WHERE total_claim_count >= 3000
 ;
